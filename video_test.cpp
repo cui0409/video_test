@@ -138,90 +138,18 @@ using namespace std;
 //}
 //
 
-using namespace cv;
 double getPSNR(const Mat& I1, const Mat& I2);
 Scalar getMSSIM(const Mat& I1, const Mat& I2);
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
-{
-	stringstream conv;
-	const string sourceReference = "F:\\Megamind.avi", sourceCompareWith = "F:\\Megamind_bugy.avi";
-	int psnrTriggerValue = 10, delay = 30;
-
-	conv >> psnrTriggerValue >> delay;   
-	int frameNum = -1;        
-	VideoCapture captRefrnc(sourceReference), captUndTst(sourceCompareWith);
-	if (!captRefrnc.isOpened())
-	{
-		cout << "Could not open reference " << sourceReference << endl;
-		return -1;
-	}
-	if (!captUndTst.isOpened())
-	{
-		cout << "Could not open case test " << sourceCompareWith << endl;
-		return -1;
-	}
-	Size refS = Size((int)captRefrnc.get(CAP_PROP_FRAME_WIDTH),
-		(int)captRefrnc.get(CAP_PROP_FRAME_HEIGHT)),
-		uTSi = Size((int)captUndTst.get(CAP_PROP_FRAME_WIDTH),
-		(int)captUndTst.get(CAP_PROP_FRAME_HEIGHT));
-	if (refS != uTSi)
-	{
-		cout << "Inputs have different size!!! Closing." << endl;
-		return -1;
-	}
-	const char* WIN_UT = "Under Test";
-	const char* WIN_RF = "Reference";
-	// Windows
-	namedWindow(WIN_RF, WINDOW_AUTOSIZE);
-	namedWindow(WIN_UT, WINDOW_AUTOSIZE);
-	moveWindow(WIN_RF, 400, 0);         //750,  2 (bernat =0)
-	moveWindow(WIN_UT, refS.width, 0);         //1500, 2
-	cout << "Reference frame resolution: Width=" << refS.width << "  Height=" << refS.height
-		<< " of nr#: " << captRefrnc.get(CAP_PROP_FRAME_COUNT) << endl;
-	cout << "PSNR trigger value " << setiosflags(ios::fixed) << setprecision(3)
-		<< psnrTriggerValue << endl;
-	Mat frameReference, frameUnderTest;
-	double psnrV;
-	Scalar mssimV;
-	for (;;) 
-	{
-		captRefrnc >> frameReference;
-		captUndTst >> frameUnderTest;
-		if (frameReference.empty() || frameUnderTest.empty())
-		{
-			cout << " < < <  Game over!  > > > ";
-			break;
-		}
-		++frameNum;
-		cout << "Frame: " << frameNum << "# ";
-		psnrV = getPSNR(frameReference, frameUnderTest);
-		cout << setiosflags(ios::fixed) << setprecision(3) << psnrV << "dB";
-		if (psnrV < psnrTriggerValue && psnrV)
-		{
-			mssimV = getMSSIM(frameReference, frameUnderTest);
-			cout << " MSSIM: "
-				<< " R " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[2] * 100 << "%"
-				<< " G " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[1] * 100 << "%"
-				<< " B " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[0] * 100 << "%";
-		}
-		cout << endl;
-		imshow(WIN_RF, frameReference);
-		imshow(WIN_UT, frameUnderTest);
-		char c = (char)waitKey(delay);
-		if (c == 27) break;
-	}
-	return 0;
-}
 double getPSNR(const Mat& I1, const Mat& I2)
 {
 	Mat s1;
-	absdiff(I1, I2, s1);     
-	s1.convertTo(s1, CV_32F); 
-	s1 = s1.mul(s1);       
-	Scalar s = sum(s1);    
+	absdiff(I1, I2, s1);
+	s1.convertTo(s1, CV_32F);
+	s1 = s1.mul(s1);
+	Scalar s = sum(s1);
 	double sse = s.val[0] + s.val[1] + s.val[2];
-	if (sse <= 1e-10) 
+	if (sse <= 1e-10)
 		return 0;
 	else
 	{
@@ -236,13 +164,13 @@ Scalar getMSSIM(const Mat& i1, const Mat& i2)
 
 	int d = CV_32F;
 	Mat I1, I2;
-	i1.convertTo(I1, d);         
+	i1.convertTo(I1, d);
 	i2.convertTo(I2, d);
-	Mat I2_2 = I2.mul(I2);       
-	Mat I1_2 = I1.mul(I1);       
-	Mat I1_I2 = I1.mul(I2);      
-								  
-	Mat mu1, mu2;                 
+	Mat I2_2 = I2.mul(I2);
+	Mat I1_2 = I1.mul(I1);
+	Mat I1_I2 = I1.mul(I2);
+
+	Mat mu1, mu2;
 	GaussianBlur(I1, mu1, Size(11, 11), 1.5);
 	GaussianBlur(I2, mu2, Size(11, 11), 1.5);
 	Mat mu1_2 = mu1.mul(mu1);
@@ -258,12 +186,125 @@ Scalar getMSSIM(const Mat& i1, const Mat& i2)
 	Mat t1, t2, t3;
 	t1 = 2 * mu1_mu2 + C1;
 	t2 = 2 * sigma12 + C2;
-	t3 = t1.mul(t2);                
+	t3 = t1.mul(t2);
 	t1 = mu1_2 + mu2_2 + C1;
 	t2 = sigma1_2 + sigma2_2 + C2;
-	t1 = t1.mul(t2);               
+	t1 = t1.mul(t2);
 	Mat ssim_map;
-	divide(t3, t1, ssim_map);        
-	Scalar mssim = mean(ssim_map);   
+	divide(t3, t1, ssim_map);
+	Scalar mssim = mean(ssim_map);
 	return mssim;
+}
+
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
+{
+	//string folder_videos = "F:\\testvideo/*.mpeg";//视频文件夹路径
+	//vector<String> video_files;//所有视频
+	
+	//每次保存之前，清空视频文件
+	//system("del F:\\testvideo/*.mpeg");
+	
+	//保存视频文件
+	string outputVideoPath = "F:\\testvideo\\testvideo.mpeg"; // 文件的保存位置
+	
+	VideoCapture capture(1);
+	if (!capture.isOpened())
+	{
+		cout << "open video error";
+	}
+	
+	double rate = capture.get(CAP_PROP_FPS);//获取视频帧率
+	
+	int width = capture.get(CAP_PROP_FRAME_WIDTH);
+	int height = capture.get(CAP_PROP_FRAME_HEIGHT);
+	Size videoSize(width, height);
+	
+	VideoWriter writer;
+	writer.open(outputVideoPath, CAP_OPENCV_MJPEG, rate, videoSize);//保存当前test视频
+
+	
+																	
+	//开始逐帧比较2个的峰值信噪比
+
+
+
+	stringstream conv;
+	const string src_video = "F:\\Megamind.avi", test_video = "F:\\Megamind_bugy.avi";
+	int psnrTriggerValue, delay = 30;
+	conv >> psnrTriggerValue >> delay;
+
+	int frameNum = -1;        
+	VideoCapture capture_src(src_video), capture_test(test_video);
+	if (!capture_src.isOpened())
+	{
+		cout << "can not open src video " << src_video << endl;
+		return -1;
+	}
+	if (!capture_test.isOpened())
+	{
+		cout << "can not open test video " << test_video << endl;
+		return -1;
+	}
+
+	Size refS = Size((int)capture_src.get(CAP_PROP_FRAME_WIDTH), (int)capture_src.get(CAP_PROP_FRAME_HEIGHT)),
+		uTSi = Size((int)capture_test.get(CAP_PROP_FRAME_WIDTH), (int)capture_test.get(CAP_PROP_FRAME_HEIGHT));
+
+	if (refS != uTSi)
+	{
+		cout << "Inputs have different size!!! Closing." << endl;
+		return -1;
+	}
+	const char* win_test = "Test video";
+	const char* win_src = "Src video";
+	// Windows
+	namedWindow(win_src, WINDOW_AUTOSIZE);
+	namedWindow(win_test, WINDOW_AUTOSIZE);
+	moveWindow(win_src, 400, 0);         
+	moveWindow(win_test, refS.width, 0);        
+
+	Mat frame_src, frame_test;
+	double psnrV;
+	vector<double> vec_psnrv;
+	Scalar mssimV;
+	for (;;) 
+	{
+		capture_src >> frame_src;
+		capture_test >> frame_test;
+		if (frame_src.empty() || frame_test.empty())
+		{
+			break;
+		}
+		++frameNum;
+		cout << "Frame: " << frameNum << "# ";
+		psnrV = getPSNR(frame_src, frame_test);
+		vec_psnrv.push_back(psnrV);
+		cout << setiosflags(ios::fixed) << setprecision(3) << psnrV << "dB";
+		if (psnrV < psnrTriggerValue && psnrV)
+		{
+			mssimV = getMSSIM(frame_src, frame_test);
+			cout << " MSSIM: "
+				<< " R " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[2] * 100 << "%"
+				<< " G " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[1] * 100 << "%"
+				<< " B " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[0] * 100 << "%";
+		}
+		cout << endl;
+		imshow(win_src, frame_src);
+		imshow(win_test, frame_test);
+		char c = (char)waitKey(delay);
+		if (c == 27) break;
+	}
+
+	//判断峰值信噪比，所有值都为0，即视频源与测试视频的每帧图像都是相同的
+	int totalNum = 0;//统计元素为0的个数
+	for (size_t i = 0; i < vec_psnrv.size(); ++i)
+	{
+		if (vec_psnrv[i] == 0)
+			totalNum++;
+	}
+	if(totalNum == vec_psnrv.size())//元素全部为0
+		MessageBox(NULL, TEXT("视频正常，视频源与测试视频每帧图像比对都是相同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+	else
+		MessageBox(NULL, TEXT("视频不正常，视频源与测试视频每帧图像比对存在不同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+
+	return 0;
 }
