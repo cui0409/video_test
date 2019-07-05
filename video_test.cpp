@@ -198,42 +198,34 @@ Scalar getMSSIM(const Mat& i1, const Mat& i2)
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
 {
-	//string folder_videos = "F:\\testvideo/*.mpeg";//视频文件夹路径
-	//vector<String> video_files;//所有视频
-	
-	//每次保存之前，清空视频文件
-	//system("del F:\\testvideo/*.mpeg");
-	
 	//保存视频文件
 	string outputVideoPath = "F:\\testvideo\\testvideo.mpeg"; // 文件的保存位置
-	
+
 	VideoCapture capture(1);
 	if (!capture.isOpened())
 	{
 		cout << "open video error";
+		//return -1;
 	}
-	
+
 	double rate = capture.get(CAP_PROP_FPS);//获取视频帧率
-	
+
 	int width = capture.get(CAP_PROP_FRAME_WIDTH);
 	int height = capture.get(CAP_PROP_FRAME_HEIGHT);
 	Size videoSize(width, height);
-	
+
 	VideoWriter writer;
 	writer.open(outputVideoPath, CAP_OPENCV_MJPEG, rate, videoSize);//保存当前test视频
 
-	
-																	
+
+
 	//开始逐帧比较2个的峰值信噪比
-
-
-
 	stringstream conv;
-	const string src_video = "F:\\Megamind.avi", test_video = "F:\\Megamind_bugy.avi";
+	const string src_video = "F:\\Megamind.mpeg", test_video = "F:\\Megamind_bugy.mpeg";
 	int psnrTriggerValue, delay = 30;
 	conv >> psnrTriggerValue >> delay;
 
-	int frameNum = -1;        
+	//int frameNum = -1;
 	VideoCapture capture_src(src_video), capture_test(test_video);
 	if (!capture_src.isOpened())
 	{
@@ -259,40 +251,74 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	// Windows
 	namedWindow(win_src, WINDOW_AUTOSIZE);
 	namedWindow(win_test, WINDOW_AUTOSIZE);
-	moveWindow(win_src, 400, 0);         
-	moveWindow(win_test, refS.width, 0);        
+	moveWindow(win_src, 400, 0);
+	moveWindow(win_test, refS.width, 0);
 
 	Mat frame_src, frame_test;
 	double psnrV;
 	vector<double> vec_psnrv;
-	Scalar mssimV;
-	for (;;) 
+
+	//先取test_video第一帧，遍历与src_video作对比
+	capture_test.set(CAP_PROP_POS_FRAMES, 0);
+	Mat mat_test, mat_src;
+	capture_test >> mat_test;
+
+	double rate_src = capture_src.get(CAP_PROP_FPS);
+
+	int num_src = capture_src.get(CAP_PROP_FRAME_COUNT);//src总帧数
+	int index_src = 0; //src当前帧
+	double psnrv_mat;
+	for (size_t i = 0; i < num_src; ++i)
 	{
-		capture_src >> frame_src;
-		capture_test >> frame_test;
-		if (frame_src.empty() || frame_test.empty())
+		capture_src.set(CAP_PROP_POS_FRAMES, i);
+		capture_src >> mat_src;
+
+		psnrv_mat = getPSNR(mat_test, mat_src);
+
+		if (psnrv_mat != 0.0)
+			index_src++;
+		else
+			break;
+	}
+	//可以再看下index_src后一帧是否还是相等，相等就基本同步了
+	capture_test.set(CAP_PROP_POS_FRAMES, 1);
+	capture_test >> mat_test;
+
+	capture_src.set(CAP_PROP_POS_FRAMES, index_src + 1);
+	capture_src >> mat_src;
+	psnrv_mat = getPSNR(mat_test, mat_src);
+	if (psnrv_mat == 0)
+		;//视频同步了，即test_video与src_video的第index_src帧同步
+
+	//开始比较，以test_video长度为准
+	int num_test = capture_test.get(CAP_PROP_FRAME_COUNT);//test总帧数
+
+
+	capture_test.set(CAP_PROP_POS_FRAMES, 0);
+	//capture_test >> mat_test;
+	for (size_t j = index_src; j < num_test; ++j)
+	{
+		capture_test >> mat_test;
+
+		capture_src.set(CAP_PROP_POS_FRAMES, j);
+		capture_src >> mat_src;
+
+		if (mat_src.empty() || mat_test.empty())
 		{
 			break;
 		}
-		++frameNum;
-		cout << "Frame: " << frameNum << "# ";
-		psnrV = getPSNR(frame_src, frame_test);
+		//++frameNum;
+		psnrV = getPSNR(mat_src, mat_test);
 		vec_psnrv.push_back(psnrV);
 		cout << setiosflags(ios::fixed) << setprecision(3) << psnrV << "dB";
-		if (psnrV < psnrTriggerValue && psnrV)
-		{
-			mssimV = getMSSIM(frame_src, frame_test);
-			cout << " MSSIM: "
-				<< " R " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[2] * 100 << "%"
-				<< " G " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[1] * 100 << "%"
-				<< " B " << setiosflags(ios::fixed) << setprecision(2) << mssimV.val[0] * 100 << "%";
-		}
-		cout << endl;
-		imshow(win_src, frame_src);
-		imshow(win_test, frame_test);
+
+		imshow(win_src, mat_src);
+		imshow(win_test, mat_test);
+
 		char c = (char)waitKey(delay);
 		if (c == 27) break;
 	}
+
 
 	//判断峰值信噪比，所有值都为0，即视频源与测试视频的每帧图像都是相同的
 	int totalNum = 0;//统计元素为0的个数
@@ -301,10 +327,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		if (vec_psnrv[i] == 0)
 			totalNum++;
 	}
-	if(totalNum == vec_psnrv.size())//元素全部为0
-		MessageBox(NULL, TEXT("视频正常，视频源与测试视频每帧图像比对都是相同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+	if (totalNum == vec_psnrv.size())//元素全部为0
+		MessageBox(NULL, TEXT("检测视频正常，测试视频与视频源每帧图像比对都是相同的"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 	else
-		MessageBox(NULL, TEXT("视频不正常，视频源与测试视频每帧图像比对存在不同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		MessageBox(NULL, TEXT("检测视频不正常，测试视频与视频源每帧图像比对存在不同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 
 	return 0;
 }
