@@ -14,130 +14,6 @@ using namespace cv;
 using namespace std;
 
 
-//int APIENTRY wWinMain(_In_ HINSTANCE hInstance,  _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
-//{
-//	string folder_pics = "F:\\testpics/*.jpg";//图片文件夹路径
-//	vector<String> image_files;//所有图片
-//
-//	string folder_videos = "F:\\testvideo/*.mpeg";//视频文件夹路径
-//	vector<String> video_files;//所有视频
-//
-//	//每次保存之前，清空视频和图片文件
-//	system("del F:\\testpics/*.jpg");
-//	system("del F:\\testvideo/*.mpeg");
-//
-//	//保存视频文件
-//	string outputVideoPath = "F:\\testvideo\\testvideo.mpeg"; // 文件的保存位置
-//
-//	VideoCapture capture(1);//0打开的是自带的摄像头，1 打开外接的相机
-//	if (!capture.isOpened())
-//	{
-//		cout << "open video error";
-//	}
-//
-//
-//	double rate = capture.get(CAP_PROP_FPS);//获取视频帧率
-//
-//	int width = capture.get(CAP_PROP_FRAME_WIDTH);
-//	int height = capture.get(CAP_PROP_FRAME_HEIGHT);
-//	Size videoSize(width, height);
-//
-//	VideoWriter writer;
-//	writer.open(outputVideoPath, CAP_OPENCV_MJPEG, rate, videoSize);
-//
-//	Mat frame;
-//
-//	int delay = 30;
-//	while (capture.isOpened())
-//	{
-//		capture >> frame;
-//		writer << frame;
-//
-//		imshow("video", frame);
-//
-//		namedWindow("video", WINDOW_AUTOSIZE);
-//
-//		if (waitKey(25) == 27)//键盘摁下esc退出播放
-//			break;
-//
-//	}
-//	writer.release();
-//
-//
-//	//视频转图片  
-//	int frame_width = (int)capture.get(CAP_PROP_FRAME_WIDTH);
-//	int frame_height = (int)capture.get(CAP_PROP_FRAME_HEIGHT);
-//	float frame_fps = capture.get(CAP_PROP_FPS);
-//	int frame_number = capture.get(CAP_PROP_FRAME_COUNT);//总帧数  
-//	frame_number = 10;//暂时先只取前10帧图片
-//	cout << "frame_width is " << frame_width << endl;
-//	cout << "frame_height is " << frame_height << endl;
-//	cout << "frame_fps is " << frame_fps << endl;
-//
-//	int num = 0;//统计帧数  
-//	cv::Mat img;
-//	string img_name;
-//	char image_name[40];
-//	//cv::namedWindow("MyVideo", WINDOW_AUTOSIZE);
-//	while (true)
-//	{
-//		cv::Mat frame;
-//		//从视频中读取一帧  
-//		bool bSuccess = capture.read(frame);
-//		if (!bSuccess)
-//		{
-//			break;
-//		}
-//		//在MyVideo窗口上显示当前帧  
-//		//imshow("MyVideo", frame);
-//		//保存的图片名  
-//		sprintf_s(image_name, "%s%d%s", "F:\\testpics\\image", ++num, ".jpg");
-//		img_name = image_name;
-//		imwrite(img_name, frame);//保存一帧图片  
-//
-//	}
-//
-//
-//	// 获取其中一张图片以处理
-//	Mat pic;
-//	cv::glob(folder_pics, image_files);
-//	if (image_files.empty())
-//		return -1;
-//	pic = imread(image_files[image_files.size() / 2]);//中间图片
-//	imshow("image",pic);
-//
-//
-//
-//	//根据提取的视频帧，判断是否正常（1.正确性比对：看内容每一帧比较  2.错误性比对：黑屏，雪花）
-//
-//
-//	//1.黑屏
-//	//即全黑像素值都为0，Mat矩阵最大值为0
-//
-//	double minv = 0.0, maxv = 0.0;
-//	double* minp = &minv;
-//	double* maxp = &maxv;
-//	minMaxIdx(pic, minp, maxp);
-//	cout << "Mat minv = " << minv << endl;
-//	if (maxv == 0.0)
-//	{
-//		MessageBox(NULL, TEXT("黑屏，视频不正常"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-//		return -1;
-//	}
-//
-//
-//	//2.雪花噪声
-//
-//
-//
-//
-//	//其余为正常
-//	MessageBox(NULL, TEXT("视频正常"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-//
-//	return 0;
-//}
-//
-
 double getPSNR(const Mat& I1, const Mat& I2);
 Scalar getMSSIM(const Mat& I1, const Mat& I2);
 
@@ -196,16 +72,146 @@ Scalar getMSSIM(const Mat& i1, const Mat& i2)
 	return mssim;
 }
 
+string get_time()
+{
+	SYSTEMTIME  st, lt;
+	//GetSystemTime(&lt);
+	GetLocalTime(&lt);
+
+	char szResult[30] = "\0";
+
+	sprintf_s(szResult, 30, "%d-%d-%d-%d-%d-%d-%d", lt.wYear, lt.wMonth, lt.wDay, lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
+
+	return szResult;
+}
+
+
+//模糊检测，如果原图像是模糊图像，返回0，否则返回1
+//10以下相对较清晰，一般为5
+int VideoBlurDetect(const cv::Mat &srcimg)
+{
+	cv::Mat img;
+	cv::cvtColor(srcimg, img, CV_BGR2GRAY); // 将输入的图片转为灰度图，使用灰度图检测模糊度
+
+											//图片每行字节数及高  
+	int width = img.cols;
+	int height = img.rows;
+	ushort* sobelTable = new ushort[width*height];
+	memset(sobelTable, 0, width*height * sizeof(ushort));
+
+	int i, j, mul;
+	//指向图像首地址  
+	uchar* udata = img.data;
+	for (i = 1, mul = i*width; i < height - 1; i++, mul += width)
+		for (j = 1; j < width - 1; j++)
+
+			sobelTable[mul + j] = abs(udata[mul + j - width - 1] + 2 * udata[mul + j - 1] + udata[mul + j - 1 + width] - \
+				udata[mul + j + 1 - width] - 2 * udata[mul + j + 1] - udata[mul + j + width + 1]);
+
+	for (i = 1, mul = i*width; i < height - 1; i++, mul += width)
+		for (j = 1; j < width - 1; j++)
+			if (sobelTable[mul + j] < 50 || sobelTable[mul + j] <= sobelTable[mul + j - 1] || \
+				sobelTable[mul + j] <= sobelTable[mul + j + 1]) sobelTable[mul + j] = 0;
+
+	int totLen = 0;
+	int totCount = 1;
+
+	uchar suddenThre = 50;
+	uchar sameThre = 3;
+	//遍历图片  
+	for (i = 1, mul = i*width; i < height - 1; i++, mul += width)
+	{
+		for (j = 1; j < width - 1; j++)
+		{
+			if (sobelTable[mul + j])
+			{
+				int   count = 0;
+				uchar tmpThre = 5;
+				uchar max = udata[mul + j] > udata[mul + j - 1] ? 0 : 1;
+
+				for (int t = j; t > 0; t--)
+				{
+					count++;
+					if (abs(udata[mul + t] - udata[mul + t - 1]) > suddenThre)
+						break;
+
+					if (max && udata[mul + t] > udata[mul + t - 1])
+						break;
+
+					if (!max && udata[mul + t] < udata[mul + t - 1])
+						break;
+
+					int tmp = 0;
+					for (int s = t; s > 0; s--)
+					{
+						if (abs(udata[mul + t] - udata[mul + s]) < sameThre)
+						{
+							tmp++;
+							if (tmp > tmpThre) break;
+						}
+						else break;
+					}
+
+					if (tmp > tmpThre) break;
+				}
+
+				max = udata[mul + j] > udata[mul + j + 1] ? 0 : 1;
+
+				for (int t = j; t < width; t++)
+				{
+					count++;
+					if (abs(udata[mul + t] - udata[mul + t + 1]) > suddenThre)
+						break;
+
+					if (max && udata[mul + t] > udata[mul + t + 1])
+						break;
+
+					if (!max && udata[mul + t] < udata[mul + t + 1])
+						break;
+
+					int tmp = 0;
+					for (int s = t; s < width; s++)
+					{
+						if (abs(udata[mul + t] - udata[mul + s]) < sameThre)
+						{
+							tmp++;
+							if (tmp > tmpThre) break;
+						}
+						else break;
+					}
+
+					if (tmp > tmpThre) break;
+				}
+				count--;
+
+				totCount++;
+				totLen += count;
+			}
+		}
+	}
+	//模糊度
+	float result = (float)totLen / totCount;
+	delete[] sobelTable;
+	sobelTable = NULL;
+
+	return result;
+}
+
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
 {
-	//保存视频文件
-	string outputVideoPath = "F:\\testvideo\\testvideo.mpeg"; // 文件的保存位置
+	char video_name[100];
 
+	string time;
+	time = get_time();
+	sprintf_s(video_name, "%s%s%s", "F:\\testvideo\\testvideo", time.c_str(), ".mpeg");
+	 
 	VideoCapture capture(1);
 	if (!capture.isOpened())
 	{
 		cout << "open video error";
-		//return -1;
+		MessageBox(NULL, TEXT("采集视频出错"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		return -1;
 	}
 
 	double rate = capture.get(CAP_PROP_FPS);//获取视频帧率
@@ -215,17 +221,40 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	Size videoSize(width, height);
 
 	VideoWriter writer;
-	writer.open(outputVideoPath, CAP_OPENCV_MJPEG, rate, videoSize);//保存当前test视频
+	writer.open(video_name, CAP_OPENCV_MJPEG, rate, videoSize);
+
+	//设置随机开始帧
+	long frameToStart = 0;
+	capture.set(CAP_PROP_POS_FRAMES, frameToStart);
+
+	//设置随机结束帧  //采集5秒
+	int frameToStop = 300;
+
+	Mat frame;
+	//指定每次都读取固定帧数的视频
+	while (frameToStart < frameToStop)
+	{
+		capture >> frame;
+		writer << frame;
+
+		imshow("video", frame);
+		namedWindow("video", WINDOW_AUTOSIZE);
+
+		frameToStart++;
+		waitKey(1);
+	}
+	writer.release();
+	//.... 以上是采集视频
+
 
 
 
 	//开始逐帧比较2个的峰值信噪比
 	stringstream conv;
-	const string src_video = "F:\\Megamind.mpeg", test_video = "F:\\Megamind_bugy.mpeg";
+	const string src_video = "F:\\testvideo\\src_video.mpeg", test_video = video_name;
 	int psnrTriggerValue, delay = 30;
 	conv >> psnrTriggerValue >> delay;
 
-	//int frameNum = -1;
 	VideoCapture capture_src(src_video), capture_test(test_video);
 	if (!capture_src.isOpened())
 	{
@@ -249,88 +278,118 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	const char* win_test = "Test video";
 	const char* win_src = "Src video";
 	// Windows
-	namedWindow(win_src, WINDOW_AUTOSIZE);
-	namedWindow(win_test, WINDOW_AUTOSIZE);
-	moveWindow(win_src, 400, 0);
-	moveWindow(win_test, refS.width, 0);
+	//namedWindow(win_src, WINDOW_AUTOSIZE);
+	//namedWindow(win_test, WINDOW_AUTOSIZE);
+	//moveWindow(win_src, 400, 0);
+	//moveWindow(win_test, refS.width, 0);
 
 	Mat frame_src, frame_test;
 	double psnrV;
 	vector<double> vec_psnrv;
 
-	//先取test_video第一帧，遍历与src_video作对比
-	capture_test.set(CAP_PROP_POS_FRAMES, 0);
 	Mat mat_test, mat_src;
-	capture_test >> mat_test;
 
 	double rate_src = capture_src.get(CAP_PROP_FPS);
+	double rate_test = capture_test.get(CAP_PROP_FPS);
 
 	int num_src = capture_src.get(CAP_PROP_FRAME_COUNT);//src总帧数
-	int index_src = 0; //src当前帧
-	double psnrv_mat;
-	for (size_t i = 0; i < num_src; ++i)
-	{
-		capture_src.set(CAP_PROP_POS_FRAMES, i);
-		capture_src >> mat_src;
-
-		psnrv_mat = getPSNR(mat_test, mat_src);
-
-		if (psnrv_mat != 0.0)
-			index_src++;
-		else
-			break;
-	}
-	//可以再看下index_src后一帧是否还是相等，相等就基本同步了
-	capture_test.set(CAP_PROP_POS_FRAMES, 1);
-	capture_test >> mat_test;
-
-	capture_src.set(CAP_PROP_POS_FRAMES, index_src + 1);
-	capture_src >> mat_src;
-	psnrv_mat = getPSNR(mat_test, mat_src);
-	if (psnrv_mat == 0)
-		;//视频同步了，即test_video与src_video的第index_src帧同步
-
-	//开始比较，以test_video长度为准
 	int num_test = capture_test.get(CAP_PROP_FRAME_COUNT);//test总帧数
 
+	int index_src = 0; //src当前帧
+	int totalNum = 0;//统计不正常的个数
+	double psnrv_mat;
+	double psnrv_mat2;
 
-	capture_test.set(CAP_PROP_POS_FRAMES, 0);
-	//capture_test >> mat_test;
-	for (size_t j = index_src; j < num_test; ++j)
+	//for (size_t i = 0; i < num_src / rate_src / 6; ++i)                      
+	//{
+	//	capture_src.set(CAP_PROP_POS_FRAMES, i * rate_src);//0、60、120、...
+	//	capture_src >> mat_src;
+
+	//	for (size_t j = 0; j < num_test / rate_test; ++j)                
+	//	{
+	//		capture_test.set(CAP_PROP_POS_FRAMES, j * rate_test);//0、60、120、...
+	//		capture_test >> mat_test;
+
+
+	//		psnrv_mat = getPSNR(mat_src, mat_test);//值越大失真越小【20，40】
+	//		vec_psnrv.push_back(psnrv_mat);
+
+	//		//Scalar sc = getMSSIM(mat_src, mat_test);//值越大失真越小，【0，1】
+
+	//		//if(sc[0] > 0.7 && sc[1] > 0.7 && sc[2] > 0.7)//随机比较
+	//		//	totalNum++;
+	//	}
+
+	//}
+	////所有元素，相邻元素差值绝对值超过10即为不正常
+	//for (size_t k = 0; k < vec_psnrv.size() - 1 ; ++k)
+	//{
+	//	if(abs(vec_psnrv[k + 1] - vec_psnrv[k]) > 10 || vec_psnrv[k] < 10)
+	//		totalNum++;
+	//}
+
+	//随机取test视频3帧,取到test的前几帧
+	Mat first_test;
+	capture_test.set(CAP_PROP_POS_FRAMES, 30);
+	capture_test >> first_test;
+
+	Mat second_test;
+	capture_test.set(CAP_PROP_POS_FRAMES, 60);
+	capture_test >> second_test;
+
+	Mat third_test;
+	capture_test.set(CAP_PROP_POS_FRAMES, 180);
+	capture_test >> third_test;
+
+
+	// 1.不显示，黑屏 （即全黑像素值都为0，Mat矩阵最大值为0）
+	double minv1 = 0.0, maxv1 = 0.0;
+	double* minp1 = &minv1;
+	double* maxp1 = &maxv1;
+	minMaxIdx(first_test, minp1, maxp1);
+
+	double minv2 = 0.0, maxv2 = 0.0;
+	double* minp2 = &minv2;
+	double* maxp2 = &maxv2;
+	minMaxIdx(second_test, minp2, maxp2);
+
+	double minv3 = 0.0, maxv3 = 0.0;
+	double* minp3 = &minv3;
+	double* maxp3 = &maxv3;
+	minMaxIdx(third_test, minp3, maxp3);
+
+	if (maxv1 == 0.0 && maxv2 == 0.0)
 	{
-		capture_test >> mat_test;
-
-		capture_src.set(CAP_PROP_POS_FRAMES, j);
-		capture_src >> mat_src;
-
-		if (mat_src.empty() || mat_test.empty())
-		{
-			break;
-		}
-		//++frameNum;
-		psnrV = getPSNR(mat_src, mat_test);
-		vec_psnrv.push_back(psnrV);
-		cout << setiosflags(ios::fixed) << setprecision(3) << psnrV << "dB";
-
-		imshow(win_src, mat_src);
-		imshow(win_test, mat_test);
-
-		char c = (char)waitKey(delay);
-		if (c == 27) break;
+		MessageBox(NULL, TEXT("黑屏，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		return -1;
+	}
+	
+	
+	//2.雪花或者花屏(撕裂或错位)         
+	//正常图像像素的灰度值变化一般都平缓，方差较小，而雪花的“闪烁点”像素灰度值剧烈变化，
+	//灰度值跳跃性大，计算方差也偏大。检测雪花的思路是小窗口方差法。
+	int snow_noise = 0;
+	snow_noise = VideoBlurDetect(first_test);
+	if (snow_noise >= 10)
+	{
+		MessageBox(NULL, TEXT("模糊，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		return -1;
 	}
 
 
-	//判断峰值信噪比，所有值都为0，即视频源与测试视频的每帧图像都是相同的
-	int totalNum = 0;//统计元素为0的个数
-	for (size_t i = 0; i < vec_psnrv.size(); ++i)
-	{
-		if (vec_psnrv[i] == 0)
-			totalNum++;
-	}
-	if (totalNum == vec_psnrv.size())//元素全部为0
-		MessageBox(NULL, TEXT("检测视频正常，测试视频与视频源每帧图像比对都是相同的"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-	else
-		MessageBox(NULL, TEXT("检测视频不正常，测试视频与视频源每帧图像比对存在不同"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 
+	//3.卡顿（1.一直卡在一个画面，任意几帧差别很小，注意测试界面还在有在变化 2.好几秒卡几秒循环）
+
+	psnrv_mat = getPSNR(second_test, third_test);//卡在一个画面，2帧之间相似度很高
+	if (psnrv_mat > 25 && psnrv_mat < 40 || psnrv_mat == 0)
+	{
+		MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		return -1;
+	}
+	//else if(psnrv_mat2 > 25 && psnrv_mat2 < 40 || psnrv_mat2 == 0)
+	//	MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+
+	//其余为正常
+	MessageBox(NULL, TEXT("正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 	return 0;
 }
