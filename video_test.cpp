@@ -197,6 +197,24 @@ int VideoBlurDetect(const cv::Mat &srcimg)
 	return result;
 }
 
+//模糊判断，雪花和花屏都包含在内，设定阈值10000，小于这个值不正常
+bool isImageBlurry(cv::Mat& img)
+{
+	cv::Mat matImageGray;
+	// converting image's color space (RGB) to grayscale
+	cv::cvtColor(img, matImageGray, CV_BGR2GRAY);
+	cv::Mat dst, abs_dst;
+	cv::Laplacian(matImageGray, dst, CV_16S, 3);
+	cv::convertScaleAbs(dst, abs_dst);
+	cv::Mat tmp_m, tmp_sd;
+	double m = 0, sd = 0;
+	int threshold = 10000;//自己设置的阈值
+	cv::meanStdDev(dst, tmp_m, tmp_sd);
+	m = tmp_m.at<double>(0, 0);
+	sd = tmp_sd.at<double>(0, 0);
+	std::cout << "StdDev: " << sd * sd << std::endl;
+	return ((sd * sd) <= threshold);
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
 {
@@ -251,7 +269,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//开始逐帧比较2个的峰值信噪比
 	stringstream conv;
-	const string src_video = "F:\\testvideo\\src_video.mpeg", test_video = video_name;
+	const string src_video = "F:\\testvideo\\src_video.mpeg", test_video = "F:\\huaping.mpeg";
 	int psnrTriggerValue, delay = 30;
 	conv >> psnrTriggerValue >> delay;
 
@@ -338,7 +356,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	capture_test >> second_test;
 
 	Mat third_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, 180);
+	capture_test.set(CAP_PROP_POS_FRAMES, 80);
 	capture_test >> third_test;
 
 
@@ -368,20 +386,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	//2.雪花或者花屏(撕裂或错位)         
 	//正常图像像素的灰度值变化一般都平缓，方差较小，而雪花的“闪烁点”像素灰度值剧烈变化，
 	//灰度值跳跃性大，计算方差也偏大。检测雪花的思路是小窗口方差法。
-	int snow_noise = 0;
-	snow_noise = VideoBlurDetect(first_test);
-	if (snow_noise >= 10)
+
+	bool mohu = isImageBlurry(first_test);
+	if(mohu)
 	{
 		MessageBox(NULL, TEXT("模糊，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 		return -1;
 	}
 
-
-
 	//3.卡顿（1.一直卡在一个画面，任意几帧差别很小，注意测试界面还在有在变化 2.好几秒卡几秒循环）
 
 	psnrv_mat = getPSNR(second_test, third_test);//卡在一个画面，2帧之间相似度很高
-	if (psnrv_mat > 25 && psnrv_mat < 40 || psnrv_mat == 0)
+	if (psnrv_mat > 25 && psnrv_mat < 60 || psnrv_mat == 0)
 	{
 		MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 		return -1;
