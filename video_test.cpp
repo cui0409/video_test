@@ -197,7 +197,7 @@ int VideoBlurDetect(const cv::Mat &srcimg)
 	return result;
 }
 
-//模糊判断，雪花和花屏都包含在内，设定阈值10000，小于这个值不正常,方差
+//模糊判断，花屏包含在内，设定阈值10000，小于这个值不正常,计算方差
 bool isImageBlurry(cv::Mat& img)
 {
 	cv::Mat matImageGray;
@@ -403,8 +403,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		return -1;
 	}
 	
-	
-	//2.雪花或者花屏(撕裂或错位)         
+	//2.卡顿（1.一直卡在一个画面，任意几帧差别很小，注意测试界面还在有在变化 2.好几秒卡几秒循环）
+
+	psnrv_mat = getPSNR(first_test, third_test);//卡在一个画面，最前和最后2帧之间相似度很高
+	if (psnrv_mat > 25 && psnrv_mat < 60 || psnrv_mat == 0)
+	{
+		MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+		return -1;
+	}
+	//else if(psnrv_mat2 > 25 && psnrv_mat2 < 40 || psnrv_mat2 == 0)
+	//	MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+
+
+
+	//3.雪花或者花屏(撕裂或错位)         
 	//正常图像像素的灰度值变化一般都平缓，方差较小，而雪花的“闪烁点”像素灰度值剧烈变化，
 	//灰度值跳跃性大，计算方差也偏大。检测雪花的思路是小窗口方差法。
 
@@ -415,16 +427,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		return -1;
 	}
 
-	//3.卡顿（1.一直卡在一个画面，任意几帧差别很小，注意测试界面还在有在变化 2.好几秒卡几秒循环）
-
-	psnrv_mat = getPSNR(first_test, third_test);//卡在一个画面，最前和最后2帧之间相似度很高
-	if (psnrv_mat > 25 && psnrv_mat < 60 || psnrv_mat == 0)
-	{
-		MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-		return -1;
-	}
-	//else if(psnrv_mat2 > 25 && psnrv_mat2 < 40 || psnrv_mat2 == 0)
-	//	MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 
 	//其余为正常
 	MessageBox(NULL, TEXT("正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
