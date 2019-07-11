@@ -197,7 +197,7 @@ int VideoBlurDetect(const cv::Mat &srcimg)
 	return result;
 }
 
-//模糊判断，雪花和花屏都包含在内，设定阈值10000，小于这个值不正常
+//模糊判断，雪花和花屏都包含在内，设定阈值10000，小于这个值不正常,方差
 bool isImageBlurry(cv::Mat& img)
 {
 	cv::Mat matImageGray;
@@ -255,11 +255,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		capture >> frame;
 		writer << frame;
 
-		imshow("video", frame);
-		namedWindow("video", WINDOW_AUTOSIZE);
+		//imshow("video", frame);
+		//namedWindow("video", WINDOW_AUTOSIZE);
 
 		frameToStart++;
-		waitKey(1);
+		//waitKey(1);
 	}
 	writer.release();
 	//.... 以上是采集视频
@@ -267,32 +267,57 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 
 
-	//开始逐帧比较2个的峰值信噪比
+
 	stringstream conv;
-	const string src_video = "F:\\testvideo\\src_video.mpeg", test_video = "F:\\huaping.mpeg";
+	//const string src_video = "F:\\testvideo\\src_video.mpeg";
+
+	const string test_video = video_name;
+	//const string test_video = "F:\\kadun.mpeg";
+	//const string test_video = "F:\\heiping.mpeg";
+	//const string test_video = "F:\\huaping.mpeg";
+
 	int psnrTriggerValue, delay = 30;
 	conv >> psnrTriggerValue >> delay;
 
-	VideoCapture capture_src(src_video), capture_test(test_video);
-	if (!capture_src.isOpened())
-	{
-		cout << "can not open src video " << src_video << endl;
-		return -1;
-	}
+	VideoCapture /*capture_src(src_video),*/ capture_test(test_video);
+	//if (!capture_src.isOpened())
+	//{
+	//	cout << "can not open src video " << src_video << endl;
+	//	return -1;
+	//}
 	if (!capture_test.isOpened())
 	{
 		cout << "can not open test video " << test_video << endl;
 		return -1;
 	}
 
-	Size refS = Size((int)capture_src.get(CAP_PROP_FRAME_WIDTH), (int)capture_src.get(CAP_PROP_FRAME_HEIGHT)),
-		uTSi = Size((int)capture_test.get(CAP_PROP_FRAME_WIDTH), (int)capture_test.get(CAP_PROP_FRAME_HEIGHT));
+	//double rate_src = capture_src.get(CAP_PROP_FPS);
+	double rate_test = capture_test.get(CAP_PROP_FPS);
 
-	if (refS != uTSi)
+	//int num_src = capture_src.get(CAP_PROP_FRAME_COUNT);//src总帧数
+	int num_test = capture_test.get(CAP_PROP_FRAME_COUNT);//test总帧数
+
+	//显示一下被测视频  test_video
+	int i = 0;
+	while (i < num_test)
 	{
-		cout << "Inputs have different size!!! Closing." << endl;
-		return -1;
+		capture_test >> frame;
+
+		imshow("video", frame);
+		namedWindow("video", WINDOW_AUTOSIZE);
+
+		i++;
+		waitKey(1);
 	}
+
+	//Size refS = Size((int)capture_src.get(CAP_PROP_FRAME_WIDTH), (int)capture_src.get(CAP_PROP_FRAME_HEIGHT));
+	Size uTSi = Size((int)capture_test.get(CAP_PROP_FRAME_WIDTH), (int)capture_test.get(CAP_PROP_FRAME_HEIGHT));
+
+	//if (refS != uTSi)
+	//{
+	//	cout << "Inputs have different size!!! Closing." << endl;
+	//	return -1;
+	//}
 	const char* win_test = "Test video";
 	const char* win_src = "Src video";
 	// Windows
@@ -307,11 +332,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	Mat mat_test, mat_src;
 
-	double rate_src = capture_src.get(CAP_PROP_FPS);
-	double rate_test = capture_test.get(CAP_PROP_FPS);
 
-	int num_src = capture_src.get(CAP_PROP_FRAME_COUNT);//src总帧数
-	int num_test = capture_test.get(CAP_PROP_FRAME_COUNT);//test总帧数
 
 	int index_src = 0; //src当前帧
 	int totalNum = 0;//统计不正常的个数
@@ -396,7 +417,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//3.卡顿（1.一直卡在一个画面，任意几帧差别很小，注意测试界面还在有在变化 2.好几秒卡几秒循环）
 
-	psnrv_mat = getPSNR(second_test, third_test);//卡在一个画面，2帧之间相似度很高
+	psnrv_mat = getPSNR(first_test, third_test);//卡在一个画面，最前和最后2帧之间相似度很高
 	if (psnrv_mat > 25 && psnrv_mat < 60 || psnrv_mat == 0)
 	{
 		MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
