@@ -204,7 +204,7 @@ bool isImageBlurry(cv::Mat& img)
 	// converting image's color space (RGB) to grayscale
 	cv::cvtColor(img, matImageGray, CV_BGR2GRAY);
 	cv::Mat dst, abs_dst;
-	cv::Laplacian(matImageGray, dst, CV_16S, 3);
+	cv::Laplacian(matImageGray, dst, CV_16S, 3);//拉普拉斯变换
 	cv::convertScaleAbs(dst, abs_dst);
 	cv::Mat tmp_m, tmp_sd;
 	double m = 0, sd = 0;
@@ -272,6 +272,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	//const string src_video = "F:\\testvideo\\src_video.mpeg";
 
 	const string test_video = video_name;
+	//const string test_video = "F:\\zhengchang.mpeg";
 	//const string test_video = "F:\\kadun.mpeg";
 	//const string test_video = "F:\\heiping.mpeg";
 	//const string test_video = "F:\\huaping.mpeg";
@@ -299,11 +300,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//显示一下被测视频  test_video
 	int i = 0;
+	Mat frame_show;
 	while (i < num_test)
 	{
-		capture_test >> frame;
+		capture_test >> frame_show;
 
-		imshow("video", frame);
+		imshow("video", frame_show);
 		namedWindow("video", WINDOW_AUTOSIZE);
 
 		i++;
@@ -369,15 +371,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//随机取test视频3帧,取到test的前几帧
 	Mat first_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, 30);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test/2);
 	capture_test >> first_test;
 
 	Mat second_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, 60);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test);
 	capture_test >> second_test;
 
 	Mat third_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, 80);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test * 3 / 2);
 	capture_test >> third_test;
 
 
@@ -430,5 +432,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//其余为正常
 	MessageBox(NULL, TEXT("正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+
+	exit(0);
+
 	return 0;
 }
