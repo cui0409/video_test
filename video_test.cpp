@@ -197,24 +197,67 @@ int VideoBlurDetect(const cv::Mat &srcimg)
 	return result;
 }
 
-//模糊判断，花屏包含在内，设定阈值10000，小于这个值不正常,计算方差
-bool isImageBlurry(cv::Mat& img)
+
+//模糊检测，如果原图像是模糊图像，返回true，否则返回false 
+bool blurDetect(Mat srcImage)
 {
-	cv::Mat matImageGray;
-	// converting image's color space (RGB) to grayscale
-	cv::cvtColor(img, matImageGray, CV_BGR2GRAY);
-	cv::Mat dst, abs_dst;
-	cv::Laplacian(matImageGray, dst, CV_16S, 3);//拉普拉斯变换
-	cv::convertScaleAbs(dst, abs_dst);
-	cv::Mat tmp_m, tmp_sd;
-	double m = 0, sd = 0;
-	int threshold = 10000;//自己设置的阈值
-	cv::meanStdDev(dst, tmp_m, tmp_sd);
-	m = tmp_m.at<double>(0, 0);
-	sd = tmp_sd.at<double>(0, 0);
-	std::cout << "StdDev: " << sd * sd << std::endl;
-	return ((sd * sd) <= threshold);
+	Mat gray1;
+
+	if (srcImage.channels() != 1)
+	{
+		cvtColor(srcImage, gray1, CV_RGB2GRAY);
+	}
+	else
+	{
+		gray1 = srcImage.clone();
+	}
+	Mat tmp_m1, tmp_sd1;    //用来存储均值和方差  
+	double m1 = 0, sd1 = 0;
+
+	m1 = mean(gray1)[0];
+	//使用3x3的Laplacian算子卷积滤波  
+	Mat dst, abs_dst;
+	Laplacian(gray1, dst, CV_16S, 3);
+	//归到0~255  
+	convertScaleAbs(dst, abs_dst);
+	//计算均值和方差  
+	meanStdDev(abs_dst, tmp_m1, tmp_sd1);//
+	m1 = tmp_m1.at<double>(0, 0);     //均值  //反应了图像的亮度
+	sd1 = tmp_sd1.at<double>(0, 0);       //标准差   //反应了像素值与均值的离散程度
+
+	double mul = sd1 * sd1;
+	if (mul < 4960 || mul > 5100)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+
 }
+
+//计算平均梯度
+double cal_mean_gradient(Mat src)
+{
+	Mat img;
+	cvtColor(src, img, CV_RGB2GRAY); // 转换为灰度图
+	img.convertTo(img, CV_64FC1);
+	double tmp = 0;
+	int rows = img.rows - 1;
+	int cols = img.cols - 1;
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			double dx = img.at<double>(i, j + 1) - img.at<double>(i, j);
+			double dy = img.at<double>(i + 1, j) - img.at<double>(i, j);
+			double ds = std::sqrt((dx*dx + dy*dy) / 2);
+			tmp += ds;
+		}
+	}
+	double imageAvG = tmp / (rows*cols);
+	return imageAvG;
+}
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR    lpCmdLine, _In_ int       nCmdShow)
 {
@@ -225,12 +268,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	sprintf_s(video_name, "%s%s%s", "F:\\testvideo\\testvideo", time.c_str(), ".mpeg");
 	 
 	VideoCapture capture(1);
-	if (!capture.isOpened())
-	{
-		cout << "open video error";
-		MessageBox(NULL, TEXT("采集视频出错"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-		return -1;
-	}
+	//if (!capture.isOpened())
+	//{
+	//	cout << "open video error";
+	//	MessageBox(NULL, TEXT("采集视频出错"), TEXT("结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+	//	return -1;
+	//}
 
 	double rate = capture.get(CAP_PROP_FPS);//获取视频帧率
 
@@ -271,6 +314,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	stringstream conv;
 	//const string src_video = "F:\\testvideo\\src_video.mpeg";
 
+	//const string test_video = "F:\\testvideo\\testvideo2019-7-11-13-55-59-775.mpeg";
 	const string test_video = video_name;
 	//const string test_video = "F:\\zhengchang.mpeg";
 	//const string test_video = "F:\\kadun.mpeg";
@@ -371,19 +415,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	//随机取test视频3帧,取到test的前几帧
 	Mat first_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, rate_test/2);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test);
 	capture_test >> first_test;
 
 	Mat second_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, rate_test);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test * 2);
 	capture_test >> second_test;
 
 	Mat third_test;
-	capture_test.set(CAP_PROP_POS_FRAMES, rate_test * 3 / 2);
+	capture_test.set(CAP_PROP_POS_FRAMES, rate_test * 3);
 	capture_test >> third_test;
 
 
-	// 1.不显示，黑屏 （即全黑像素值都为0，Mat矩阵最大值为0）
+	//优先级  1.不显示，黑屏 （即全黑像素值都为0，Mat矩阵最大值为0）
 	double minv1 = 0.0, maxv1 = 0.0;
 	double* minp1 = &minv1;
 	double* maxp1 = &maxv1;
@@ -399,7 +443,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	double* maxp3 = &maxv3;
 	minMaxIdx(third_test, minp3, maxp3);
 
-	if (maxv1 == 0.0 && maxv2 == 0.0)
+	if (maxv1 == 0.0 /*&& maxv2 == 0.0*/)
 	{
 		MessageBox(NULL, TEXT("黑屏，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 		return -1;
@@ -415,25 +459,45 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	}
 	//else if(psnrv_mat2 > 25 && psnrv_mat2 < 40 || psnrv_mat2 == 0)
 	//	MessageBox(NULL, TEXT("卡顿，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+	
+
+	//相邻像素间的灰度特征的梯度差
+	//Mat imageGrey;
+	//cvtColor(first_test, imageGrey, CV_RGB2GRAY);
+	//Mat imageSobel;
+	//Sobel(imageGrey, imageSobel, CV_16U, 1, 1);//求平均灰度值
+	//double meanValue = 0.0;
+	//meanValue = mean(imageSobel)[0];
 
 
-
-	//3.雪花或者花屏(撕裂或错位)         
-	//正常图像像素的灰度值变化一般都平缓，方差较小，而雪花的“闪烁点”像素灰度值剧烈变化，
-	//灰度值跳跃性大，计算方差也偏大。检测雪花的思路是小窗口方差法。
-
-	bool mohu = isImageBlurry(first_test);
-	if(mohu)
+	//计算平均梯度
+	double average_gradient = cal_mean_gradient(first_test);
+	double average_gradient2 = cal_mean_gradient(second_test);
+	double average_gradient3 = cal_mean_gradient(third_test);
+	if((average_gradient > 7.2) && (average_gradient2 > 7.2) && (average_gradient3 > 7.2))
 	{
 		MessageBox(NULL, TEXT("模糊，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
 		return -1;
 	}
 
+	//3.雪花或者花屏(撕裂或错位)         
+	//正常图像像素的灰度值变化一般都平缓，方差较小，而雪花的“闪烁点”像素灰度值剧烈变化，
+	//灰度值跳跃性大，计算方差也偏大。检测雪花的思路是小窗口方差法。
+
+	// 连续间隔3帧  视频模糊
+	//bool mohu = blurDetect(first_test);
+	//bool mohu2 = blurDetect(second_test);
+	//bool mohu3 = blurDetect(third_test);
+
+	//if (mohu && mohu2 && mohu3)
+	////if((mohu && mohu2) || (mohu && mohu3) || (mohu2 && mohu3))
+	//{
+	//	MessageBox(NULL, TEXT("模糊，不正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
+	//	return -1;
+	//}
 
 	//其余为正常
 	MessageBox(NULL, TEXT("正常"), TEXT("视频检测结果"), MB_DEFBUTTON1 | MB_DEFBUTTON2);
-
-	exit(0);
 
 	return 0;
 }
